@@ -2,6 +2,5 @@ build*
 .cache*
 .vscode
 TODO
-examples/main_posix_sync
-examples/main_linux_gcc_x86_64_sync
-benchmarks/copy
+basic
+*.dSYM
