@@ -3,4 +3,5 @@ build*
 .vscode
 TODO
 basic
+test
 *.dSYM

@@ -5,6 +5,7 @@
 
 // A low-level and complete API for cooperative coroutine scheduling.
 
+// An opaque type which represents a fiber.
 struct fiber;
 
 // Returns the size in bytes of struct fiber for the current architecture.

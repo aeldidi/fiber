@@ -4,17 +4,17 @@
 #include "../fiber.h"
 
 struct fiber* main_fiber;
+struct fiber* other_fiber;
 
 void
 fiber_func(void* arg)
 {
 	(void)arg;
-	printf("b\n");
+	int y       = 7;
+	other_fiber = fiber_current();
 	fiber_switch(main_fiber);
-	printf("d\n");
-	fiber_switch(main_fiber);
-	printf("f\n");
-	fiber_switch(main_fiber);
+	printf("%d\n", y);
+	exit(EXIT_SUCCESS);
 }
 
 uint8_t memory[1 << 16] = {0};
@@ -24,16 +24,9 @@ main()
 {
 	struct fiber* f     = (void*)memory;
 	uint8_t*      stack = memory + fiber_size();
-	int           x     = 0;
 	fiber_init(f, fiber_func, NULL, (1 << 16) - fiber_size(), stack);
 	main_fiber = fiber_current();
-	printf("a\n");
 	fiber_switch(f);
-	printf("c\n");
 	fiber_switch(f);
-	printf("e\n");
-	fiber_switch(f);
-	printf("g\n");
-
 	return 0;
 }
