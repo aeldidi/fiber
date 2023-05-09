@@ -8,7 +8,7 @@
 // An opaque type which represents a fiber.
 struct fiber;
 
-// Returns the size in bytes of struct fiber for the current architecture.
+// Returns the size in bytes of struct fiber for the backend being used.
 size_t fiber_size();
 
 // Initializes the fiber f given the function and stack provided.

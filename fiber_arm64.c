@@ -1,7 +1,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #include "fiber.h"
 
@@ -65,7 +64,10 @@ fiber_init(struct fiber* f, void (*func)(void*), void* arg,
 {
 	f->arg = arg;
 	f->pc  = (uintptr_t)func;
-	f->sp  = (uintptr_t)ALIGN_UP(stack + stack_len - 16, 16);
+
+	// The AAPCS64 ABI requires the stack to be aligned to 16 bytes.
+	// https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#6451universal-stack-constraints
+	f->sp = (uintptr_t)ALIGN_UP(stack + stack_len - 16, 16);
 }
 
 // The assembly below makes use of these assumptions:
@@ -92,118 +94,118 @@ _Static_assert(offsetof(struct fiber, d14) == 152, "");
 _Static_assert(offsetof(struct fiber, d15) == 160, "");
 _Static_assert(offsetof(struct fiber, fp) == 168, "");
 
-__attribute__((noinline, naked)) struct fiber*
+struct fiber*
 fiber_current()
 {
-	__asm__ __volatile__(
-			// if current_fiber != NULL goto 1
-			"str lr, [%[current_fiber], #8]\n\t" // pc = lr
-			"mov x0, sp\n\t"
-			"str x0, [%[current_fiber], #16]\n\t" // save sp
-			"str fp, [%[current_fiber], #168]\n\t"
-
-			// Save all registers the ABI says to
-			"str x19, [%[current_fiber], #24]\n\t"
-			"str x20, [%[current_fiber], #32]\n\t"
-			"str x21, [%[current_fiber], #40]\n\t"
-			"str x22, [%[current_fiber], #48]\n\t"
-			"str x23, [%[current_fiber], #56]\n\t"
-			"str x24, [%[current_fiber], #64]\n\t"
-			"str x25, [%[current_fiber], #72]\n\t"
-			"str x26, [%[current_fiber], #80]\n\t"
-			"str x27, [%[current_fiber], #88]\n\t"
-			"str x28, [%[current_fiber], #96]\n\t"
-
-			"str d8, [%[current_fiber], #104]\n\t"
-			"str d9, [%[current_fiber], #112]\n\t"
-			"str d10, [%[current_fiber], #120]\n\t"
-			"str d11, [%[current_fiber], #128]\n\t"
-			"str d12, [%[current_fiber], #136]\n\t"
-			"str d13, [%[current_fiber], #144]\n\t"
-			"str d14, [%[current_fiber], #152]\n\t"
-			"str d15, [%[current_fiber], #160]\n\t"
-
-			// now return current_fiber
-			"mov x0, %[current_fiber]\n\t"
-			"ret"
-
-			: // no outputs
-			// inputs:
-			: [current_fiber] "r"(current_fiber)
-			// clobbers
-			: "memory");
+	return current_fiber;
 }
 
 __attribute__((noinline, naked)) void
 fiber_switch(struct fiber* to)
 {
-	// set current_fiber->pc to this function's return address, then set
-	// current_fiber to the one passed to the function.
+	__asm__("str lr, [%[current_fiber], #8]\n\t" // pc = lr
+		"mov x1, sp\n\t"
+		"str x1, [%[current_fiber], #16]\n\t" // save sp
+		"str fp, [%[current_fiber], #168]\n\t"
+
+		// Save all registers the ABI says to
+		"str x19, [%[current_fiber], #24]\n\t"
+		"str x20, [%[current_fiber], #32]\n\t"
+		"str x21, [%[current_fiber], #40]\n\t"
+		"str x22, [%[current_fiber], #48]\n\t"
+		"str x23, [%[current_fiber], #56]\n\t"
+		"str x24, [%[current_fiber], #64]\n\t"
+		"str x25, [%[current_fiber], #72]\n\t"
+		"str x26, [%[current_fiber], #80]\n\t"
+		"str x27, [%[current_fiber], #88]\n\t"
+		"str x28, [%[current_fiber], #96]\n\t"
+
+		"str d8, [%[current_fiber], #104]\n\t"
+		"str d9, [%[current_fiber], #112]\n\t"
+		"str d10, [%[current_fiber], #120]\n\t"
+		"str d11, [%[current_fiber], #128]\n\t"
+		"str d12, [%[current_fiber], #136]\n\t"
+		"str d13, [%[current_fiber], #144]\n\t"
+		"str d14, [%[current_fiber], #152]\n\t"
+		"str d15, [%[current_fiber], #160]\n\t"
+			: // no outputs
+			// inputs:
+			: [current_fiber] "r"(current_fiber)
+			// clobbers
+			: "memory", "x1");
+
+	// set current_fiber->pc to this function's return address and save the
+	// current state of the stack, then set current_fiber to the one passed
+	// to the function.
 	//
 	// This needs to be separate from the other __asm__ block so when the
 	// various inputs are loaded, they happen after current_fiber has been
 	// switched.
-	__asm__("str lr, [%[current_fiber_r], #8]\n\t"
-		"str x0, %[current_fiber]\n\t" // current_fiber = to
+	__asm__("str x0, %[current_fiber]\n\t" // current_fiber = to
 			// outputs:
 			: [current_fiber] "=m"(current_fiber)
-			// inputs:
-			: [current_fiber_r] "r"(current_fiber)
-			// clobbers:
-			: "x0");
+			: // no inputs
+			: // no clobbers
+	);
 
 	// I can't simply list the memory locations as inputs, since there
 	// aren't enough non-volatile registers for gcc to be able to place
 	// everything in, so I just use offsets from the base address, using
 	// static asserts to confirm they are correct.
-	__asm__ __volatile__("mov x1, x0\n\t"               // x1 = to
-			     "ldr x0, [%[current_fiber]]\n" // arg = x0
+	__asm__ __volatile__(
+			"mov x1, x0\n\t" // x1 = to
 
-			     // restore all registers the ABI says to
-			     "ldr x19, [%[current_fiber], #24]\n\t"
-			     "ldr x20, [%[current_fiber], #32]\n\t"
-			     "ldr x21, [%[current_fiber], #40]\n\t"
-			     "ldr x22, [%[current_fiber], #48]\n\t"
-			     "ldr x23, [%[current_fiber], #56]\n\t"
-			     "ldr x24, [%[current_fiber], #64]\n\t"
-			     "ldr x25, [%[current_fiber], #72]\n\t"
-			     "ldr x26, [%[current_fiber], #80]\n\t"
-			     "ldr x27, [%[current_fiber], #88]\n\t"
-			     "ldr x28, [%[current_fiber], #96]\n\t"
+			// We can unconditionally set x0 to arg since on
+			// function entry, this will make it the first
+			// argument, and on subsequent switches the code
+			// assumes x0 was clobbered anyway, since the ABI says
+			// x0 is caller-saved.
+			"ldr x0, [%[current_fiber]]\n" // arg = x0
 
-			     "ldr d8, [%[current_fiber], #104]\n\t"
-			     "ldr d9, [%[current_fiber], #112]\n\t"
-			     "ldr d10, [%[current_fiber], #120]\n\t"
-			     "ldr d11, [%[current_fiber], #128]\n\t"
-			     "ldr d12, [%[current_fiber], #136]\n\t"
-			     "ldr d13, [%[current_fiber], #144]\n\t"
-			     "ldr d14, [%[current_fiber], #152]\n\t"
-			     "ldr d15, [%[current_fiber], #160]\n\t"
+			// restore all registers the ABI says to
+			"ldr x19, [%[current_fiber], #24]\n\t"
+			"ldr x20, [%[current_fiber], #32]\n\t"
+			"ldr x21, [%[current_fiber], #40]\n\t"
+			"ldr x22, [%[current_fiber], #48]\n\t"
+			"ldr x23, [%[current_fiber], #56]\n\t"
+			"ldr x24, [%[current_fiber], #64]\n\t"
+			"ldr x25, [%[current_fiber], #72]\n\t"
+			"ldr x26, [%[current_fiber], #80]\n\t"
+			"ldr x27, [%[current_fiber], #88]\n\t"
+			"ldr x28, [%[current_fiber], #96]\n\t"
 
-			     // set the new stack
-			     "ldr x3, [%[current_fiber], #16]\n\t"
-			     "mov sp, x3\n\t"
-			     "ldr x3, [%[current_fiber], #168]\n\t"
-			     "mov fp, x3\n\t"
+			"ldr d8, [%[current_fiber], #104]\n\t"
+			"ldr d9, [%[current_fiber], #112]\n\t"
+			"ldr d10, [%[current_fiber], #120]\n\t"
+			"ldr d11, [%[current_fiber], #128]\n\t"
+			"ldr d12, [%[current_fiber], #136]\n\t"
+			"ldr d13, [%[current_fiber], #144]\n\t"
+			"ldr d14, [%[current_fiber], #152]\n\t"
+			"ldr d15, [%[current_fiber], #160]\n\t"
 
-			     // jump to the new pc
-			     "ldr x3, [%[current_fiber], #8]\n\t"
-			     "br x3"
+			// set the new stack
+			"ldr x3, [%[current_fiber], #16]\n\t"
+			"mov sp, x3\n\t"
+			"ldr x3, [%[current_fiber], #168]\n\t"
+			"mov fp, x3\n\t"
 
-			     : // no outputs
+			// jump to the new pc
+			"ldr x3, [%[current_fiber], #8]\n\t"
+			"br x3"
 
-			     // inputs:
-			     : [current_fiber] "r"(current_fiber)
+			: // no outputs
 
-			     // clobbers
-			     // I initially thought that we wouldn't have to
-			     // list these, since we're following the calling
-			     // convention by saving all required registers,
-			     // but listing them here also means the compiler
-			     // won't use these registers to place
-			     // current_fiber in.
-			     : "x19", "x20", "x21", "x22", "x23", "x24", "x24",
-			     "x25", "x26", "x27", "x28", "d8", "d9", "d10",
-			     "d11", "d12", "d13", "d14", "d15", "x3",
-			     "memory");
+			// inputs:
+			: [current_fiber] "r"(current_fiber)
+
+			// clobbers:
+			// I initially thought that we wouldn't have to
+			// list these, since we're following the calling
+			// convention by saving all required registers,
+			// but listing them here also means the compiler
+			// won't use these registers to place
+			// current_fiber in.
+			: "x19", "x20", "x21", "x22", "x23", "x24", "x24",
+			"x25", "x26", "x27", "x28", "d8", "d9", "d10", "d11",
+			"d12", "d13", "d14", "d15", "x3", "memory");
 }
