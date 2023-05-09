@@ -17,16 +17,16 @@ fiber_func(void* arg)
 	exit(EXIT_SUCCESS);
 }
 
-uint8_t memory[1 << 16] = {0};
-
 int
 main()
 {
+	void* memory = aligned_alloc(fiber_align(), fiber_size() + (1 << 16));
 	struct fiber* f     = (void*)memory;
 	uint8_t*      stack = memory + fiber_size();
 	fiber_init(f, fiber_func, NULL, (1 << 16) - fiber_size(), stack);
 	main_fiber = fiber_current();
 	fiber_switch(f);
 	fiber_switch(f);
+	free(memory);
 	return 0;
 }

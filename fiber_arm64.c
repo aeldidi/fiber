@@ -58,6 +58,12 @@ fiber_size()
 	return sizeof(struct fiber);
 }
 
+size_t
+fiber_align()
+{
+	return _Alignof(struct fiber);
+}
+
 void
 fiber_init(struct fiber* f, void (*func)(void*), void* arg,
 		const size_t stack_len, uint8_t* stack)

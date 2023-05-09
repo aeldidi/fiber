@@ -3,6 +3,10 @@
 
 #include "../fiber.h"
 
+// returns the next aligned address
+#define ALIGN_UP(ptr, alignment)                                              \
+	((ptr) + ((alignment) - ((uintptr_t)(ptr) % (alignment))))
+
 struct fiber* main_fiber;
 
 void
@@ -17,14 +21,16 @@ fiber_func(void* arg)
 	fiber_switch(main_fiber);
 }
 
+uint8_t memory[1 << 16] = {0};
+
 int
 main()
 {
-	void* memory = aligned_alloc(fiber_align(), fiber_size() + (1 << 16));
-	struct fiber* f     = memory;
-	uint8_t*      stack = memory + fiber_size();
+	struct fiber* f     = ALIGN_UP((void*)memory, fiber_align());
+	uint8_t*      stack = (void*)f + fiber_size();
 	int           x     = 0;
-	fiber_init(f, fiber_func, NULL, (1 << 16) - fiber_size(), stack);
+	fiber_init(f, fiber_func, NULL,
+			(1 << 16) - fiber_size() - fiber_align(), stack);
 	main_fiber = fiber_current();
 	printf("a\n");
 	fiber_switch(f);
@@ -34,6 +40,5 @@ main()
 	fiber_switch(f);
 	printf("g\n");
 
-	free(memory);
 	return 0;
 }

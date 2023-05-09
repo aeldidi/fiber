@@ -8,8 +8,11 @@
 // An opaque type which represents a fiber.
 struct fiber;
 
-// Returns the size in bytes of struct fiber for the backend being used.
+// Returns the size in bytes of struct fiber.
 size_t fiber_size();
+
+// Returns the alignment in bytes of struct fiber.
+size_t fiber_align();
 
 // Initializes the fiber f given the function and stack provided.
 // func will be called with arg as its parameter to begin the fiber.
@@ -26,6 +29,8 @@ struct fiber* fiber_current();
 
 // Switches to the fiber to.
 // to must be initialized with fiber_init before it can be switched to.
+// The fiber to must be different from the current fiber (returned by
+// fiber_current()).
 void fiber_switch(struct fiber* to);
 
 #endif // FIBER_H
