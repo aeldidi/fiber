@@ -80,7 +80,7 @@ _Static_assert(offsetof(struct fiber, r15) == 64, "");
 
 // by giving this function the sysv_abi attribute, the first parameter will be
 // passed in rdi, even on Windows.
-__attribute__((noinline, naked, sysv_abi)) void
+__attribute__((__noinline__, __naked__, __sysv_abi__)) void
 fiber_switch(struct fiber* to)
 {
 	__asm__("popq %%rcx\n\t" // load return address into rcx

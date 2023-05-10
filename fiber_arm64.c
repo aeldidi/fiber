@@ -106,7 +106,7 @@ fiber_current()
 	return current_fiber;
 }
 
-__attribute__((noinline, naked)) void
+__attribute__((__noinline__, __naked__)) void
 fiber_switch(struct fiber* to)
 {
 	__asm__("str lr, [%[current_fiber], #8]\n\t" // pc = lr
