@@ -4,14 +4,12 @@
 #include "../fiber.h"
 
 struct fiber* main_fiber;
-struct fiber* other_fiber;
 
 void
 fiber_func(void* arg)
 {
 	(void)arg;
-	int y       = 7;
-	other_fiber = fiber_current();
+	int y = 7;
 	fiber_switch(main_fiber);
 	printf("%d\n", y);
 	exit(EXIT_SUCCESS);
