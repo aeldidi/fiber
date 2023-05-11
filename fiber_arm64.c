@@ -49,8 +49,8 @@ struct fiber {
 	uint64_t fp;
 };
 
-struct fiber  main_fiber    = {0};
-struct fiber* current_fiber = &main_fiber;
+struct fiber  _main_fiber    = {0};
+struct fiber* _current_fiber = &_main_fiber;
 
 size_t
 fiber_size()
@@ -103,7 +103,7 @@ _Static_assert(offsetof(struct fiber, fp) == 168, "");
 struct fiber*
 fiber_current()
 {
-	return current_fiber;
+	return _current_fiber;
 }
 
 __attribute__((__noinline__, __naked__)) void
@@ -136,7 +136,7 @@ fiber_switch(struct fiber* to)
 		"str d15, [%[current_fiber], #160]\n\t"
 			: // no outputs
 			// inputs:
-			: [current_fiber] "r"(current_fiber)
+			: [current_fiber] "r"(_current_fiber)
 			// clobbers
 			: "memory", "x1");
 
@@ -149,7 +149,7 @@ fiber_switch(struct fiber* to)
 	// switched.
 	__asm__("str x0, %[current_fiber]\n\t" // current_fiber = to
 			// outputs:
-			: [current_fiber] "=m"(current_fiber)
+			: [current_fiber] "=m"(_current_fiber)
 			: // no inputs
 			: // no clobbers
 	);
@@ -202,15 +202,9 @@ fiber_switch(struct fiber* to)
 			: // no outputs
 
 			// inputs:
-			: [current_fiber] "r"(current_fiber)
+			: [current_fiber] "r"(_current_fiber)
 
 			// clobbers:
-			// I initially thought that we wouldn't have to
-			// list these, since we're following the calling
-			// convention by saving all required registers,
-			// but listing them here also means the compiler
-			// won't use these registers to place
-			// current_fiber in.
 			: "x19", "x20", "x21", "x22", "x23", "x24", "x24",
 			"x25", "x26", "x27", "x28", "d8", "d9", "d10", "d11",
 			"d12", "d13", "d14", "d15", "x3", "memory");

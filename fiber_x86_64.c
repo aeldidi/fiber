@@ -150,12 +150,6 @@ fiber_switch(struct fiber* to)
 			: [current_fiber] "r"(_current_fiber)
 
 			// clobbers:
-			// I initially thought that we wouldn't have to
-			// list these, since we're following the calling
-			// convention by saving all required registers,
-			// but listing them here also means the compiler
-			// won't use these registers to place
-			// current_fiber in.
 			: "rcx", "rdi", "rbx", "r12", "r13", "r14", "r15",
 			"memory");
 }
